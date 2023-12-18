@@ -39,7 +39,7 @@ class ScriptArguments:
     beta: Optional[float] = field(default=0.1, metadata={"help": "the beta parameter for DPO loss"})
 
     # training parameters
-    model_name_or_path: Optional[str] = field(default="gpt2", metadata={"help": "the model name"})
+    model_name_or_path: Optional[str] = field(default="meta-llama/Llama-2-7b-hf", metadata={"help": "the model name"})
     learning_rate: Optional[float] = field(default=1e-3, metadata={"help": "optimizer learning rate"})
     per_device_train_batch_size: Optional[int] = field(default=4, metadata={"help": "batch size per device"})
     gradient_accumulation_steps: Optional[int] = field(
