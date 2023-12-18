@@ -10,3 +10,4 @@ dataclasses
 colorama 
 wandb
 tensorboardX
+huggingface_hub

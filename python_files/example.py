@@ -27,6 +27,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, HfArgumentParser, 
 
 from trl import DPOTrainer
 
+from huggingface_hub import login
+
 
 # Define and parse arguments.
 @dataclass
@@ -141,6 +143,9 @@ def get_hh(split: str, sanity_check: bool = False, silent: bool = False, cache_d
 if __name__ == "__main__":
     parser = HfArgumentParser(ScriptArguments)
     script_args = parser.parse_args_into_dataclasses()[0]
+    access_token_read = "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"
+    access_token_write = "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"
+    login(token = access_token_read)
 
     # 1. load a pretrained model
     model = AutoModelForCausalLM.from_pretrained(script_args.model_name_or_path)
