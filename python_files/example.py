@@ -93,34 +93,49 @@ class ScriptArguments:
 #     return prompt_and_response[: search_term_idx + len(search_term)]
 
 
-def get_hh(split: str, sanity_check: bool = False, silent: bool = False, cache_dir: str = None) -> Dataset:
-    """Load the Anthropic Helpful-Harmless dataset from Hugging Face and convert it to the necessary format.
+# def get_hh(split: str, sanity_check: bool = False, silent: bool = False, cache_dir: str = None) -> Dataset:
+#     """Load the Anthropic Helpful-Harmless dataset from Hugging Face and convert it to the necessary format.
 
-    The dataset is converted to a dictionary with the following structure:
+#     The dataset is converted to a dictionary with the following structure:
+#     {
+#         'prompt': List[str],
+#         'chosen': List[str],
+#         'rejected': List[str],
+#     }
+
+#     Prompts should be structured as follows:
+#       \n\nHuman: <prompt>\n\nAssistant:
+#     Multiple turns are allowed, but the prompt should always start with \n\nHuman: and end with \n\nAssistant:.
+#     """
+#     dataset = load_dataset("Anthropic/hh-rlhf", split=split, cache_dir=cache_dir)
+#     if sanity_check:
+#         dataset = dataset.select(range(min(len(dataset), 1000)))
+
+#     def split_prompt_and_responses(sample) -> Dict[str, str]:
+#         prompt = extract_anthropic_prompt(sample["chosen"])
+#         return {
+#             "prompt": prompt,
+#             "chosen": sample["chosen"][len(prompt) :],
+#             "rejected": sample["rejected"][len(prompt) :],
+#         }
+
+#     return dataset.map(split_prompt_and_responses)
+
+def get_hh(split: str, sanity_check: bool = False, silent: bool = False, cache_dir: str = None) -> Dataset:
+    """Load the Anthropic Full RLHF dataset from Hugging Face and convert it to the necessary format.
+
+    The dataset has the following structure:
     {
         'prompt': List[str],
+        'response': List[str],
         'chosen': List[str],
         'rejected': List[str],
     }
-
-    Prompts should be structured as follows:
-      \n\nHuman: <prompt>\n\nAssistant:
-    Multiple turns are allowed, but the prompt should always start with \n\nHuman: and end with \n\nAssistant:.
     """
-    # dataset = load_dataset("Anthropic/hh-rlhf", split=split, cache_dir=cache_dir)
     dataset = load_dataset("Dahoas/full-hh-rlhf", split=split, cache_dir=cache_dir)
     if sanity_check:
         dataset = dataset.select(range(min(len(dataset), 1000)))
 
-    # def split_prompt_and_responses(sample) -> Dict[str, str]:
-    #     prompt = extract_anthropic_prompt(sample["chosen"])
-    #     return {
-    #         "prompt": prompt,
-    #         "chosen": sample["chosen"][len(prompt) :],
-    #         "rejected": sample["rejected"][len(prompt) :],
-    #     }
-
-    # return dataset.map(split_prompt_and_responses)
     return dataset
 
 if __name__ == "__main__":
