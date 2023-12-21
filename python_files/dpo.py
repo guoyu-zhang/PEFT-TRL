@@ -27,8 +27,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, HfArgumentParser, 
 
 from trl import DPOTrainer
 
-from huggingface_hub import login
-
 
 # Define and parse arguments.
 @dataclass
@@ -41,7 +39,7 @@ class ScriptArguments:
     beta: Optional[float] = field(default=0.1, metadata={"help": "the beta parameter for DPO loss"})
 
     # training parameters
-    model_name_or_path: Optional[str] = field(default="meta-llama/Llama-2-7b-hf", metadata={"help": "the model name"})
+    model_name_or_path: Optional[str] = field(default="gpt2", metadata={"help": "the model name"})
     learning_rate: Optional[float] = field(default=1e-3, metadata={"help": "optimizer learning rate"})
     per_device_train_batch_size: Optional[int] = field(default=4, metadata={"help": "batch size per device"})
     gradient_accumulation_steps: Optional[int] = field(
@@ -87,65 +85,46 @@ class ScriptArguments:
     )
 
 
-# def extract_anthropic_prompt(prompt_and_response):
-#     """Extract the anthropic prompt from a prompt and response pair."""
-#     search_term = "\n\nAssistant:"
-#     search_term_idx = prompt_and_response.rfind(search_term)
-#     assert search_term_idx != -1, f"Prompt and response does not contain '{search_term}'"
-#     return prompt_and_response[: search_term_idx + len(search_term)]
+def extract_anthropic_prompt(prompt_and_response):
+    """Extract the anthropic prompt from a prompt and response pair."""
+    search_term = "\n\nAssistant:"
+    search_term_idx = prompt_and_response.rfind(search_term)
+    assert search_term_idx != -1, f"Prompt and response does not contain '{search_term}'"
+    return prompt_and_response[: search_term_idx + len(search_term)]
 
-
-# def get_hh(split: str, sanity_check: bool = False, silent: bool = False, cache_dir: str = None) -> Dataset:
-#     """Load the Anthropic Helpful-Harmless dataset from Hugging Face and convert it to the necessary format.
-
-#     The dataset is converted to a dictionary with the following structure:
-#     {
-#         'prompt': List[str],
-#         'chosen': List[str],
-#         'rejected': List[str],
-#     }
-
-#     Prompts should be structured as follows:
-#       \n\nHuman: <prompt>\n\nAssistant:
-#     Multiple turns are allowed, but the prompt should always start with \n\nHuman: and end with \n\nAssistant:.
-#     """
-#     dataset = load_dataset("Anthropic/hh-rlhf", split=split, cache_dir=cache_dir)
-#     if sanity_check:
-#         dataset = dataset.select(range(min(len(dataset), 1000)))
-
-#     def split_prompt_and_responses(sample) -> Dict[str, str]:
-#         prompt = extract_anthropic_prompt(sample["chosen"])
-#         return {
-#             "prompt": prompt,
-#             "chosen": sample["chosen"][len(prompt) :],
-#             "rejected": sample["rejected"][len(prompt) :],
-#         }
-
-#     return dataset.map(split_prompt_and_responses)
 
 def get_hh(split: str, sanity_check: bool = False, silent: bool = False, cache_dir: str = None) -> Dataset:
-    """Load the Anthropic Full RLHF dataset from Hugging Face and convert it to the necessary format.
+    """Load the Anthropic Helpful-Harmless dataset from Hugging Face and convert it to the necessary format.
 
-    The dataset has the following structure:
+    The dataset is converted to a dictionary with the following structure:
     {
         'prompt': List[str],
-        'response': List[str],
         'chosen': List[str],
         'rejected': List[str],
     }
+
+    Prompts should be structured as follows:
+      \n\nHuman: <prompt>\n\nAssistant:
+    Multiple turns are allowed, but the prompt should always start with \n\nHuman: and end with \n\nAssistant:.
     """
-    dataset = load_dataset("Dahoas/full-hh-rlhf", split=split, cache_dir=cache_dir)
+    dataset = load_dataset("Anthropic/hh-rlhf", split=split, cache_dir=cache_dir)
     if sanity_check:
         dataset = dataset.select(range(min(len(dataset), 1000)))
 
-    return dataset
+    def split_prompt_and_responses(sample) -> Dict[str, str]:
+        prompt = extract_anthropic_prompt(sample["chosen"])
+        return {
+            "prompt": prompt,
+            "chosen": sample["chosen"][len(prompt) :],
+            "rejected": sample["rejected"][len(prompt) :],
+        }
+
+    return dataset.map(split_prompt_and_responses)
+
 
 if __name__ == "__main__":
     parser = HfArgumentParser(ScriptArguments)
     script_args = parser.parse_args_into_dataclasses()[0]
-    access_token_read = "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"
-    access_token_write = "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"
-    login(token = access_token_read)
 
     # 1. load a pretrained model
     model = AutoModelForCausalLM.from_pretrained(script_args.model_name_or_path)

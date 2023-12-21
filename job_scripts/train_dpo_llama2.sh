@@ -1,6 +1,6 @@
 \#!/bin/sh
 # Grid Engine options (lines prefixed with #$)
-#$ -N main
+#$ -N dpo_llama2
 #$ -cwd
 #$ -l h_rt=03:00:00
 #$ -l h_vmem=100G
@@ -25,14 +25,10 @@ export XDG_CACHE_HOME="/exports/eddie/scratch/s1808795/.cache"
 module load cuda
 module load python/3.11.4
 
-
-# source activate myenv
 source /exports/eddie/scratch/s1808795/repo/PEFT-TRL/venv/bin/activate
-# /exports/eddie/scratch/s1808795/miniconda3/bin/conda init bash
-# /exports/eddie/scratch/s1808795/miniconda3/bin/conda activate myenv
 
 # Run the program
-python ~/git/PEFT-TRL/python_files/main.py
+python ~/git/PEFT-TRL/python_files/dpo_llama2.py
 
 deactivate
 
