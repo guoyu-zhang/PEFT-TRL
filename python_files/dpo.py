@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from typing import Dict, Optional
 
 import torch
+from torch.nn.functional import log_softmax
 from datasets import Dataset, load_dataset
 from peft import LoraConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer, HfArgumentParser, TrainingArguments
@@ -39,7 +40,7 @@ class ScriptArguments:
     beta: Optional[float] = field(default=0.1, metadata={"help": "the beta parameter for DPO loss"})
 
     # training parameters
-    model_name_or_path: Optional[str] = field(default="EleutherAI/pythia-2.8b", metadata={"help": "the model name"})
+    model_name_or_path: Optional[str] = field(default="gpt2", metadata={"help": "the model name"})
     learning_rate: Optional[float] = field(default=1e-3, metadata={"help": "optimizer learning rate"})
     per_device_train_batch_size: Optional[int] = field(default=1, metadata={"help": "batch size per device"})
     gradient_accumulation_steps: Optional[int] = field(
@@ -53,7 +54,7 @@ class ScriptArguments:
     label_pad_token_id: Optional[int] = field(default=-100, metadata={"help": "label for non response tokens"})
     max_steps: Optional[int] = field(default=1000, metadata={"help": "max number of training steps"})
     # lora parameters
-    use_peft: Optional[bool] = field(default=False, metadata={"help": "Wether to use PEFT or not to train adapters"})
+    use_peft: Optional[bool] = field(default=True, metadata={"help": "Wether to use PEFT or not to train adapters"})
     peft_lora_r: Optional[int] = field(default=64, metadata={"help": "the r parameter of the LoRA adapters"})
     peft_lora_alpha: Optional[int] = field(default=16, metadata={"help": "the alpha parameter of the LoRA adapters"})
     # instrumentation
@@ -84,6 +85,23 @@ class ScriptArguments:
         },
     )
 
+
+def calculate_log_probabilities(model, tokenizer, prompts, responses):
+    inputs = tokenizer(prompts, responses, return_tensors="pt", padding=True, truncation=True, max_length=512)
+    outputs = model(**inputs, labels=inputs["input_ids"])
+    logits = outputs.logits
+    shift_logits = logits[..., :-1, :].contiguous()
+    shift_labels = inputs["input_ids"][..., 1:].contiguous()
+    # Flatten the tokens
+    loss_fct = torch.nn.CrossEntropyLoss(reduction='none')
+    loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+    loss = loss.view(shift_labels.size(0), -1)
+    log_probs = -loss
+    # Only consider non-pad tokens for log probability calculation
+    pad_token_mask = shift_labels.ne(tokenizer.pad_token_id)
+    log_probs *= pad_token_mask
+    sequence_log_probs = log_probs.sum(dim=-1)
+    return sequence_log_probs
 
 def extract_anthropic_prompt(prompt_and_response):
     """Extract the anthropic prompt from a prompt and response pair."""
@@ -196,3 +214,17 @@ if __name__ == "__main__":
 
     # 6. train
     dpo_trainer.train()
+
+    # Loop over the dataset and calculate the log probabilities for 'chosen' and 'rejected' responses
+    win_count = 0
+    for example in eval_dataset:
+        prompt = example['prompt']
+        chosen_log_probs = calculate_log_probabilities(model, tokenizer, prompt, example['chosen'])
+        rejected_log_probs = calculate_log_probabilities(model, tokenizer, prompt, example['rejected'])
+        
+        if chosen_log_probs > rejected_log_probs:
+            win_count += 1
+
+    # Calculate the win rate
+    win_rate = win_count / len(eval_dataset)
+    print(f"Win Rate: {win_rate:.2%}")
