@@ -87,7 +87,15 @@ class ScriptArguments:
 
 
 def calculate_log_probabilities(model, tokenizer, prompts, responses):
-    inputs = tokenizer(prompts, responses, return_tensors="pt", padding=True, truncation=True, max_length=512)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Move your model to the specified device
+    model = model.to(device)
+
+    # When processing your inputs, also send them to the same device
+    inputs = tokenizer(prompt, responses, return_tensors="pt", padding=True, truncation=True, max_length=512)
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+    # inputs = tokenizer(prompts, responses, return_tensors="pt", padding=True, truncation=True, max_length=512)
     outputs = model(**inputs, labels=inputs["input_ids"])
     logits = outputs.logits
     shift_logits = logits[..., :-1, :].contiguous()
@@ -102,6 +110,8 @@ def calculate_log_probabilities(model, tokenizer, prompts, responses):
     log_probs *= pad_token_mask
     sequence_log_probs = log_probs.sum(dim=-1)
     return sequence_log_probs
+
+
 
 def extract_anthropic_prompt(prompt_and_response):
     """Extract the anthropic prompt from a prompt and response pair."""
